@@ -7,15 +7,18 @@ package frc.robot;
 // Imports that allow the usage of REV Spark Max motor controllers
 import com.revrobotics.CANSparkBase;
 import com.revrobotics.CANSparkBase.IdleMode;
-import com.revrobotics.CANSparkMax;
 import com.revrobotics.CANSparkLowLevel.MotorType;
+import com.revrobotics.CANSparkMax;
 
+import edu.wpi.first.cameraserver.CameraServer;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 
 
 public class Robot extends TimedRobot {
@@ -37,10 +40,10 @@ public class Robot extends TimedRobot {
    * The rookie kit comes with CIMs which are brushed motors.
    * Use the appropriate other class if you are using different controllers.
    */
-  CANSparkBase leftRear = new CANSparkMax(1, MotorType.kBrushless);
-  CANSparkBase leftFront = new CANSparkMax(2, MotorType.kBrushless);
-  CANSparkBase rightRear = new CANSparkMax(3, MotorType.kBrushless);
-  CANSparkBase rightFront = new CANSparkMax(4, MotorType.kBrushless);
+  CANSparkBase leftRear = new CANSparkMax(11, MotorType.kBrushless);
+  CANSparkBase leftFront = new CANSparkMax(12, MotorType.kBrushless);
+  CANSparkBase rightRear = new CANSparkMax(13, MotorType.kBrushless);
+  CANSparkBase rightFront = new CANSparkMax(14, MotorType.kBrushless);
 
   /*
    * A class provided to control your drivetrain. Different drive styles can be passed to differential drive:
@@ -56,18 +59,18 @@ public class Robot extends TimedRobot {
    *
    * Both of the motors used on the KitBot launcher are CIMs which are brushed motors
    */
-  CANSparkBase m_launchWheel = new CANSparkMax(6, MotorType.kBrushless);
-  CANSparkBase m_feedWheel = new CANSparkMax(5, MotorType.kBrushless);
+  CANSparkBase m_launchWheel = new CANSparkMax(22, MotorType.kBrushless);
+  CANSparkBase m_feedWheel = new CANSparkMax(21, MotorType.kBrushless);
 
   /**
    * Roller Claw motor controller instance.
   */
-  CANSparkBase m_rollerClaw = new CANSparkMax(8, MotorType.kBrushless);
+  CANSparkBase m_rollerClaw = new CANSparkMax(23, MotorType.kBrushless);
   /**
    * Climber motor controller instance. In the stock Everybot configuration a
    * NEO is used, replace with kBrushed if using a brushed motor.
    */
-  CANSparkBase m_climber = new CANSparkMax(7, MotorType.kBrushless);
+  CANSparkBase m_climber = new CANSparkMax(24, MotorType.kBrushless);
 
     /**
    * The starter code uses the most generic joystick class.
@@ -78,10 +81,11 @@ public class Robot extends TimedRobot {
    *
    * Buttons index from 0
    */
-  Joystick m_driverController = new Joystick(0);
+  private final CommandXboxController m_driverController = new CommandXboxController(0);
 
 
-  Joystick m_manipController = new Joystick(1);
+  private final CommandXboxController m_shooterController =
+      new CommandXboxController(1);
 
 
   // --------------- Magic numbers. Use these to adjust settings. ---------------
@@ -152,6 +156,7 @@ public class Robot extends TimedRobot {
     m_chooser.addOption("launch", kLaunch);
     m_chooser.addOption("drive", kDrive);
     SmartDashboard.putData("Auto choices", m_chooser);
+    CameraServer.startAutomaticCapture();
 
 
 
@@ -182,8 +187,8 @@ public class Robot extends TimedRobot {
      *
      * Add white tape to wheel to help determine spin direction.
      */
-    m_feedWheel.setInverted(true);
-    m_launchWheel.setInverted(true);
+    m_feedWheel.setInverted(false);
+    m_launchWheel.setInverted(false);
 
     /*
      * Apply the current limit to the launching mechanism
@@ -221,7 +226,7 @@ public class Robot extends TimedRobot {
 
   /*
    * Auto constants, change values below in autonomousInit()for different autonomous behaviour
-   *
+   *0
    * A delayed action starts X seconds into the autonomous period
    *
    * A time action will perform an action for X amount of seconds
@@ -231,6 +236,7 @@ public class Robot extends TimedRobot {
    */
   double AUTO_LAUNCH_DELAY_S;
   double AUTO_DRIVE_DELAY_S;
+  double AUTO_FEED_DELAY_S;
 
   double AUTO_DRIVE_TIME_S;
 
@@ -249,10 +255,11 @@ public class Robot extends TimedRobot {
     rightFront.setIdleMode(IdleMode.kBrake);
 
     AUTO_LAUNCH_DELAY_S = 2;
-    AUTO_DRIVE_DELAY_S = 3;
+    AUTO_FEED_DELAY_S = 1;
+    AUTO_DRIVE_DELAY_S = 2;
 
     AUTO_DRIVE_TIME_S = 2.0;
-    AUTO_DRIVE_SPEED = -0.5;
+    AUTO_DRIVE_SPEED = 0.5;
     AUTO_LAUNCHER_SPEED = 1;
     
     /*
@@ -293,25 +300,28 @@ public class Robot extends TimedRobot {
      *
      * Does not move when time is greater than AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S
      */
-    if(timeElapsed < AUTO_LAUNCH_DELAY_S)
-    {
-      m_launchWheel.set(AUTO_LAUNCHER_SPEED);
-      m_drivetrain.arcadeDrive(0, 0);
-
-    }
-    else if(timeElapsed < AUTO_DRIVE_DELAY_S)
-    {
-      m_feedWheel.set(AUTO_LAUNCHER_SPEED);
-      m_drivetrain.arcadeDrive(0, 0);
-    }
-    else if(timeElapsed < AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S)
+    if(timeElapsed < AUTO_DRIVE_TIME_S)
     {
       m_launchWheel.set(0);
       m_feedWheel.set(0);
       m_drivetrain.arcadeDrive(AUTO_DRIVE_SPEED, 0);
     }
+    else if(timeElapsed < AUTO_DRIVE_TIME_S + AUTO_LAUNCH_DELAY_S)
+    {
+      m_launchWheel.set(AUTO_LAUNCHER_SPEED);
+      m_drivetrain.arcadeDrive(0, 0);
+
+    }
+    else if(timeElapsed < AUTO_DRIVE_TIME_S + AUTO_LAUNCH_DELAY_S + AUTO_FEED_DELAY_S)
+    {
+      m_feedWheel.set(AUTO_LAUNCHER_SPEED);
+      m_drivetrain.arcadeDrive(0, 0);
+    }
+    
     else
     {
+      m_launchWheel.set(0);
+      m_feedWheel.set(0);
       m_drivetrain.arcadeDrive(0, 0);
     }
     /* For an explanation on differintial drive, squaredInputs, arcade drive and tank drive see the bottom of this file */
@@ -341,10 +351,62 @@ public class Robot extends TimedRobot {
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
+    double s_triggerValueLeft = m_shooterController.getLeftTriggerAxis();
+    double s_triggerValueRight = m_shooterController.getRightTriggerAxis();
 
-    /*
+
+    if (s_triggerValueLeft > 0.2)
+    {
+      m_launchWheel.set(LAUNCHER_SPEED);
+    }
+    else  
+    {
+      m_launchWheel.set(0);
+    }
+
+    if (s_triggerValueRight > 0.2)
+    {
+      m_feedWheel.set(FEEDER_OUT_SPEED);
+    }
+    else  
+    {
+      m_feedWheel.set(0);
+    }
+
+    if (m_shooterController.leftBumper().getAsBoolean() == true)
+    {
+      m_launchWheel.set(0.35);
+    }
+
+    if (m_shooterController.rightBumper().getAsBoolean() == true)
+    {
+      m_feedWheel.set(0.35);
+    }
+
+    if (m_shooterController.y().getAsBoolean() == true)
+    {
+      m_launchWheel.set(-0.2);
+      m_feedWheel.set(-0.2);
+    }
+
+    if (m_shooterController.a().getAsBoolean() == true)
+    {
+      m_climber.set(-1);
+    }
+    else if (m_shooterController.b().getAsBoolean() == true)
+    {
+      m_climber.set(1);
+    }
+    else 
+    {
+      m_climber.set(0);
+    }
+
+
+    /**
+     *
      * Spins up the launcher wheel
-     */
+     *
     if (m_manipController.getRawButton(1)) {
       m_launchWheel.set(LAUNCHER_SPEED);
     }
@@ -353,9 +415,9 @@ public class Robot extends TimedRobot {
       m_launchWheel.set(0);
     }
 
-    /*
+     *
      * Spins feeder wheel, wait for launch wheel to spin up to full speed for best results
-     */
+     *
     if (m_manipController.getRawButton(6))
     {
       m_feedWheel.set(FEEDER_OUT_SPEED);
@@ -365,13 +427,13 @@ public class Robot extends TimedRobot {
       m_feedWheel.set(0);
     }
 
-    /*
+     *
      * While the button is being held spin both motors to intake note
-     */
+     *
     if(m_manipController.getRawButton(5))
     {
       m_launchWheel.set(-LAUNCHER_SPEED);
-      m_feedWheel.set(FEEDER_IN_SPEED);
+      //m_feedWheel.set(FEEDER_IN_SPEED);
     }
     else if(m_manipController.getRawButtonReleased(5))
     {
@@ -379,12 +441,12 @@ public class Robot extends TimedRobot {
       m_feedWheel.set(0);
     }
 
-    /*
+     *
      * While the amp button is being held, spin both motors to "spit" the note
      * out at a lower speed into the amp
      *
      * (this may take some driver practice to get working reliably)
-     */
+     *
     if(m_manipController.getRawButton(2))
     {
       m_feedWheel.set(FEEDER_AMP_SPEED);
@@ -395,6 +457,7 @@ public class Robot extends TimedRobot {
       m_feedWheel.set(0);
       m_launchWheel.set(0);
     }
+    **/
 
     /**
      * Hold one of the two buttons to either intake or exjest note from roller claw
@@ -404,7 +467,7 @@ public class Robot extends TimedRobot {
      * It may be best to have the roller claw passively on throughout the match to 
      * better retain notes but we did not test this
      */ 
-    if(m_manipController.getRawButton(3))
+    /* if(m_manipController.getRawButton(3))
     {
       m_rollerClaw.set(CLAW_OUTPUT_POWER);
     }
@@ -415,14 +478,16 @@ public class Robot extends TimedRobot {
     else
     {
       m_rollerClaw.set(0);
-    }
+    } */
 
     /**
      * POV is the D-PAD (directional pad) on your controller, 0 == UP and 180 == DOWN
      * 
      * After a match re-enable your robot and unspool the climb
      */
-    if(m_manipController.getPOV() == 0)
+    
+    /**
+     if(m_manipController.getPOV() == 0)
     {
       m_climber.set(1);
     }
@@ -434,6 +499,7 @@ public class Robot extends TimedRobot {
     {
       m_climber.set(0);
     }
+    **/
   
     /*
      * Negative signs are here because the values from the analog sticks are backwards
@@ -446,8 +512,17 @@ public class Robot extends TimedRobot {
      * This was setup with a logitech controller, note there is a switch on the back of the
      * controller that changes how it functions
      */
-    m_drivetrain.arcadeDrive(-m_driverController.getRawAxis(1), -m_driverController.getRawAxis(4), false);
+    double d_triggerValueLeft = m_driverController.getLeftTriggerAxis();
+    double d_triggerValueRight = m_driverController.getRightTriggerAxis();
+
+    if (Math.abs(m_driverController.getRawAxis(0)) >= 0.2 || Math.abs(m_driverController.getRawAxis(1)) >= 0.2) {
+      if (m_driverController.rightBumper().getAsBoolean() == true)
+        m_drivetrain.arcadeDrive(-m_driverController.getRawAxis(1)*0.2, m_driverController.getRawAxis(0)*0.1, false);
+      else
+        m_drivetrain.arcadeDrive(-m_driverController.getRawAxis(1)*0.6, m_driverController.getRawAxis(0)*0.2, false);
+    }
   }
+
 }
 
 /*
