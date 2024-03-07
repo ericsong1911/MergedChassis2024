@@ -29,6 +29,7 @@ public class Robot extends TimedRobot {
   private static final String kLaunchAndDrive = "launch drive";
   private static final String kLaunch = "launch";
   private static final String kDrive = "drive";
+  private static final String kCornerLaunch = "corner launch";
   private String m_autoSelected;
   private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
@@ -65,12 +66,12 @@ public class Robot extends TimedRobot {
   /**
    * Roller Claw motor controller instance.
   */
-  CANSparkBase m_rollerClaw = new CANSparkMax(23, MotorType.kBrushless);
+  // CANSparkBase m_rollerClaw = new CANSparkMax(23, MotorType.kBrushless);
   /**
    * Climber motor controller instance. In the stock Everybot configuration a
    * NEO is used, replace with kBrushed if using a brushed motor.
    */
-  CANSparkBase m_climber = new CANSparkMax(24, MotorType.kBrushless);
+  // CANSparkBase m_climber = new CANSparkMax(24, MotorType.kBrushless);
 
     /**
    * The starter code uses the most generic joystick class.
@@ -151,8 +152,9 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotInit() {
-    m_chooser.setDefaultOption("do nothing", kNothingAuto);
-    m_chooser.addOption("launch note and drive", kLaunchAndDrive);
+    m_chooser.setDefaultOption("launch note and drive", kLaunchAndDrive);
+    m_chooser.addOption("corner launch", kCornerLaunch);
+    m_chooser.addOption("do nothing", kNothingAuto);
     m_chooser.addOption("launch", kLaunch);
     m_chooser.addOption("drive", kDrive);
     SmartDashboard.putData("Auto choices", m_chooser);
@@ -199,19 +201,19 @@ public class Robot extends TimedRobot {
     /*
      * Inverting and current limiting for roller claw and climber
      */
-    m_rollerClaw.setInverted(false);
-    m_climber.setInverted(false);
+    // m_rollerClaw.setInverted(false);
+    // m_climber.setInverted(false);
 
-    m_rollerClaw.setSmartCurrentLimit(60);
-    m_climber.setSmartCurrentLimit(60);
+    // m_rollerClaw.setSmartCurrentLimit(60);
+    // m_climber.setSmartCurrentLimit(60);
 
     /*
      * Motors can be set to idle in brake or coast mode.
      * 
      * Brake mode is best for these mechanisms
      */
-    m_rollerClaw.setIdleMode(IdleMode.kBrake);
-    m_climber.setIdleMode(IdleMode.kBrake);
+    // m_rollerClaw.setIdleMode(IdleMode.kBrake);
+    // m_climber.setIdleMode(IdleMode.kBrake);
   }
 
   /**
@@ -242,6 +244,12 @@ public class Robot extends TimedRobot {
 
   double AUTO_DRIVE_SPEED;
   double AUTO_LAUNCHER_SPEED;
+  double AUTO_BACK_TIME_S;
+  double AUTO_BACK_SPEED;
+  double AUTO_CURVE_SPEED;
+  double AUTO_CURVE_TIME_S;
+
+  boolean LEFT_CORNER;
 
   double autonomousStartTime;
 
@@ -255,12 +263,17 @@ public class Robot extends TimedRobot {
     rightFront.setIdleMode(IdleMode.kBrake);
 
     AUTO_LAUNCH_DELAY_S = 2;
-    AUTO_FEED_DELAY_S = 1;
-    AUTO_DRIVE_DELAY_S = 2;
+    AUTO_DRIVE_DELAY_S = 3;
+    AUTO_BACK_TIME_S = 0.5;
+    AUTO_CURVE_TIME_S = 2;
 
-    AUTO_DRIVE_TIME_S = 2.0;
-    AUTO_DRIVE_SPEED = 0.5;
+    AUTO_DRIVE_TIME_S = 4.0;
+    AUTO_DRIVE_SPEED = -0.5;
     AUTO_LAUNCHER_SPEED = 1;
+    AUTO_BACK_SPEED = -0.3;
+    AUTO_CURVE_SPEED = 0;
+
+    LEFT_CORNER = false;
     
     /*
      * Depeding on which auton is selected, speeds for the unwanted subsystems are set to 0
@@ -268,7 +281,11 @@ public class Robot extends TimedRobot {
      *
      * For kDrive you can also change the kAutoDriveBackDelay
      */
-    if(m_autoSelected == kLaunch)
+    if(m_autoSelected == kCornerLaunch) 
+    {
+      AUTO_CURVE_SPEED = -0.25;
+    }
+    else if(m_autoSelected == kLaunch)
     {
       AUTO_DRIVE_SPEED = 0;
     }
@@ -300,28 +317,35 @@ public class Robot extends TimedRobot {
      *
      * Does not move when time is greater than AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S
      */
-    if(timeElapsed < AUTO_DRIVE_TIME_S)
+    if (timeElapsed < AUTO_BACK_TIME_S) 
     {
       m_launchWheel.set(0);
       m_feedWheel.set(0);
-      m_drivetrain.arcadeDrive(AUTO_DRIVE_SPEED, 0);
+      m_drivetrain.tankDrive(AUTO_BACK_SPEED, 0);
     }
-    else if(timeElapsed < AUTO_DRIVE_TIME_S + AUTO_LAUNCH_DELAY_S)
+    else if(timeElapsed < AUTO_LAUNCH_DELAY_S)
     {
       m_launchWheel.set(AUTO_LAUNCHER_SPEED);
-      m_drivetrain.arcadeDrive(0, 0);
-
+      m_drivetrain.tankDrive(0, 0);
     }
-    else if(timeElapsed < AUTO_DRIVE_TIME_S + AUTO_LAUNCH_DELAY_S + AUTO_FEED_DELAY_S)
+    else if(timeElapsed < AUTO_DRIVE_DELAY_S)
     {
       m_feedWheel.set(AUTO_LAUNCHER_SPEED);
       m_drivetrain.arcadeDrive(0, 0);
     }
-    
-    else
+    else if(timeElapsed < AUTO_DRIVE_DELAY_S + AUTO_CURVE_TIME_S)
     {
       m_launchWheel.set(0);
       m_feedWheel.set(0);
+      m_drivetrain.arcadeDrive(AUTO_DRIVE_SPEED, AUTO_CURVE_SPEED);
+    }
+    else if (timeElapsed < AUTO_DRIVE_DELAY_S + AUTO_DRIVE_TIME_S)
+    {
+      m_drivetrain.arcadeDrive(AUTO_DRIVE_SPEED, 0);
+    }
+
+    else
+    {
       m_drivetrain.arcadeDrive(0, 0);
     }
     /* For an explanation on differintial drive, squaredInputs, arcade drive and tank drive see the bottom of this file */
@@ -375,12 +399,12 @@ public class Robot extends TimedRobot {
 
     if (m_shooterController.leftBumper().getAsBoolean() == true)
     {
-      m_launchWheel.set(0.35);
+      m_launchWheel.set(0.4);
     }
 
     if (m_shooterController.rightBumper().getAsBoolean() == true)
     {
-      m_feedWheel.set(0.35);
+      m_feedWheel.set(0.4);
     }
 
     if (m_shooterController.y().getAsBoolean() == true)
@@ -389,7 +413,7 @@ public class Robot extends TimedRobot {
       m_feedWheel.set(-0.2);
     }
 
-    if (m_shooterController.a().getAsBoolean() == true)
+    /*if (m_shooterController.a().getAsBoolean() == true)
     {
       m_climber.set(-1);
     }
@@ -400,7 +424,7 @@ public class Robot extends TimedRobot {
     else 
     {
       m_climber.set(0);
-    }
+    }*/
 
 
     /**
@@ -515,11 +539,11 @@ public class Robot extends TimedRobot {
     double d_triggerValueLeft = m_driverController.getLeftTriggerAxis();
     double d_triggerValueRight = m_driverController.getRightTriggerAxis();
 
-    if (Math.abs(m_driverController.getRawAxis(0)) >= 0.2 || Math.abs(m_driverController.getRawAxis(1)) >= 0.2) {
+    if (Math.abs(m_driverController.getRawAxis(1)) >= 0.2 || Math.abs(m_driverController.getRawAxis(2)) >= 0.2) {
       if (m_driverController.rightBumper().getAsBoolean() == true)
-        m_drivetrain.arcadeDrive(-m_driverController.getRawAxis(1)*0.2, m_driverController.getRawAxis(0)*0.1, false);
+        m_drivetrain.curvatureDrive(-m_driverController.getRawAxis(1)*0.2, m_driverController.getRawAxis(2)*0.1, true);
       else
-        m_drivetrain.arcadeDrive(-m_driverController.getRawAxis(1)*0.6, m_driverController.getRawAxis(0)*0.2, false);
+        m_drivetrain.curvatureDrive(-m_driverController.getRawAxis(1)*0.6, m_driverController.getRawAxis(2)*0.2, true);
     }
   }
 
